@@ -1,0 +1,654 @@
+<!--
+  Copyright 2026 Google LLC
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GDC Air-gapped Node.js SDK — Release Pipeline Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --success: #22c55e;
+      --failure: #ef4444;
+      --running: #3b82f6;
+      --skipped: #64748b;
+      --release: #a855f7;
+      --snapshot: #0ea5e9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+    .container { max-width: 1360px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    h1 { margin: 0; font-size: 1.5rem; }
+    .subtitle { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .header-links { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.9rem; }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .kpi-label {
+      color: var(--muted);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .kpi-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-top: 8px;
+      word-break: break-word;
+    }
+    .kpi-sub {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 6px;
+    }
+    .pipeline-stages {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .stage-pill {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 0.84rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .badge.success, .badge.completed { background: rgba(34, 197, 94, 0.18); color: var(--success); }
+    .badge.failure { background: rgba(239, 68, 68, 0.18); color: var(--failure); }
+    .badge.running, .badge.in_progress, .badge.queued, .badge.waiting { background: rgba(59, 130, 246, 0.18); color: var(--running); }
+    .badge.pending, .badge.skipped, .badge.unknown, .badge.cancelled, .badge.idle { background: rgba(100, 116, 139, 0.2); color: var(--muted); }
+    .badge.release { background: rgba(168, 85, 247, 0.22); color: #c084fc; }
+    .badge.snapshot { background: rgba(14, 165, 233, 0.2); color: #38bdf8; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    .badge.running, .badge.in_progress { animation: pulse 1.8s ease-in-out infinite; }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 0.84rem;
+    }
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+    a { color: #38bdf8; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      background: rgba(15, 23, 42, 0.6);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78rem;
+    }
+    details.notes-toggle {
+      margin-top: 6px;
+    }
+    details.notes-toggle summary {
+      cursor: pointer;
+      color: #c084fc;
+      font-size: 0.78rem;
+      font-weight: 600;
+      user-select: none;
+    }
+    pre.notes-body {
+      margin: 8px 0 2px;
+      padding: 10px 12px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.75rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>GDC Air-gapped Node.js SDK &mdash; Release Pipeline Dashboard</h1>
+        <div class="subtitle">
+          Weeknight Snapshot Qualification (Mon&ndash;Fri 02:00 PST) &amp; Official SemVer npm Releases on GDC Air-gapped Staging
+        </div>
+      </div>
+      <div class="header-links">
+        <a href="https://www.npmjs.com/package/gdc-cas" target="_blank" rel="noopener">npmjs: gdc-cas &rarr;</a>
+        <a href="https://github.com/GoogleCloudPlatform/google-distributed-cloud-node/releases" target="_blank" rel="noopener">GitHub Releases &rarr;</a>
+        <a href="https://github.com/GoogleCloudPlatform/google-distributed-cloud-node/actions/workflows/release-pipeline.yaml" target="_blank" rel="noopener">View GitHub Actions Workflow &rarr;</a>
+      </div>
+    </header>
+
+    <div class="kpi-grid">
+      <div class="card">
+        <div class="kpi-label">Total Recorded Runs</div>
+        <div class="kpi-value" id="kpi-total">0</div>
+        <div class="kpi-sub">Snapshot &amp; Release history</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Pass Rate</div>
+        <div class="kpi-value" id="kpi-pass-rate">-</div>
+        <div class="kpi-sub" id="kpi-pass-sub">Completed runs</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Latest Certified Release</div>
+        <div class="kpi-value" id="kpi-latest-release">None</div>
+        <div class="kpi-sub">Published via OSS Exit Gate</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Latest Certified Snapshot</div>
+        <div class="kpi-value" id="kpi-latest-snapshot">None</div>
+        <div class="kpi-sub">GDC Staging certified (no npm publish)</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Live npm Latest (gdc-cas)</div>
+        <div class="kpi-value" id="kpi-npm-latest">Checking...</div>
+        <div class="kpi-sub" id="kpi-npm-sub">30-day downloads: -</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Automated Schedules (PST)</div>
+        <div class="kpi-value" style="font-size: 0.94rem; line-height: 1.45;">
+          Snapshot: Mon&ndash;Fri 02:00<br />
+          Release: Maintainer Dispatch
+        </div>
+        <div class="kpi-sub">Independent SemVer (<code>0.1.0+</code>)</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 24px;">
+      <div class="kpi-label" id="latest-stages-label">Latest Pipeline Execution Stage Progress</div>
+      <div class="pipeline-stages" id="latest-stages"></div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <div class="kpi-label">Release &amp; Snapshot Execution History</div>
+        <div class="filters">
+          <div>
+            <label for="pkg-filter" style="color: var(--muted); font-size: 0.82rem; margin-right: 4px;">Package:</label>
+            <select id="pkg-filter">
+              <option value="all">All Packages</option>
+              <option value="gdc-cas">gdc-cas</option>
+            </select>
+          </div>
+          <div>
+            <label for="mode-filter" style="color: var(--muted); font-size: 0.82rem; margin-right: 4px;">Mode:</label>
+            <select id="mode-filter">
+              <option value="all">All Runs (Snapshot &amp; Release)</option>
+              <option value="release">Release Only</option>
+              <option value="snapshot">Snapshot Only</option>
+            </select>
+          </div>
+          <div>
+            <label for="status-filter" style="color: var(--muted); font-size: 0.82rem; margin-right: 4px;">Status:</label>
+            <select id="status-filter">
+              <option value="all">All Statuses</option>
+              <option value="success">Passed</option>
+              <option value="failure">Failed</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Timestamp</th>
+              <th>Package</th>
+              <th>Mode</th>
+              <th>Trigger</th>
+              <th>Status</th>
+              <th>Artifact Version &amp; Tag</th>
+              <th>Commit</th>
+              <th>Stages (Auth / Notes / Stg / Pub / Verify)</th>
+              <th>Duration</th>
+            </tr>
+          </thead>
+          <tbody id="runs-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const REPO_SLUG = 'GoogleCloudPlatform/google-distributed-cloud-node';
+    const GITHUB_WORKFLOW_RUNS_API = `https://api.github.com/repos/${REPO_SLUG}/actions/workflows/release-pipeline.yaml/runs?per_page=10`;
+    const NPM_REGISTRY_URL = 'https://registry.npmjs.org/gdc-cas';
+    const NPM_DOWNLOADS_URL = 'https://api.npmjs.org/downloads/point/last-month/gdc-cas';
+
+    const STAGE_ORDER = [
+      ['authorize', '1. Authorize & SemVer', 'Auth'],
+      ['notes', '2. Prepare Release Notes', 'Notes'],
+      ['staging', '3. Certify on GDC Staging', 'Stg'],
+      ['publish', '4. Publish via OSS Exit Gate', 'Pub'],
+      ['verifyNpm', '5. Verify Published npm Package', 'Verify']
+    ];
+
+    let allRuns = [];
+    let durationTimerId = null;
+    let pollTimerId = null;
+
+    function esc(val) {
+      return String(val ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function isActiveStatus(status) {
+      return status === 'in_progress' || status === 'running' || status === 'queued' || status === 'waiting';
+    }
+
+    function formatDurationSeconds(totalSecs) {
+      if (!Number.isFinite(totalSecs) || totalSecs < 0) return 'N/A';
+      const secs = Math.floor(totalSecs % 60);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const hours = Math.floor(totalSecs / 3600);
+      if (hours > 0) return `${hours}h ${mins}m ${secs}s`;
+      if (mins > 0) return `${mins}m ${secs}s`;
+      return `${secs}s`;
+    }
+
+    function computeLiveDuration(run) {
+      if (isActiveStatus(run.status) && run.startedAtMs) {
+        return formatDurationSeconds((Date.now() - run.startedAtMs) / 1000);
+      }
+      return run.duration || 'N/A';
+    }
+
+    function formatLocalTimestamp(isoStr) {
+      if (!isoStr || isoStr === '-') return '-';
+      const parsed = new Date(isoStr);
+      if (Number.isNaN(parsed.getTime())) return isoStr;
+      return new Intl.DateTimeFormat(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short'
+      }).format(parsed);
+    }
+
+    function mapJobState(job) {
+      if (!job) return 'pending';
+      if (job.status === 'in_progress') return 'running';
+      if (job.status === 'queued' || job.status === 'waiting') return job.status;
+      if (job.status === 'completed') return job.conclusion || 'completed';
+      return 'pending';
+    }
+
+    async function loadNpmRegistryStats() {
+      const latestEl = document.getElementById('kpi-npm-latest');
+      const subEl = document.getElementById('kpi-npm-sub');
+
+      try {
+        const res = await fetch(NPM_REGISTRY_URL, { cache: 'no-store' });
+        if (res.status === 404) {
+          latestEl.textContent = 'Unpublished';
+          subEl.textContent = 'Pending initial 0.1.0 release';
+          return;
+        }
+        if (res.ok) {
+          const data = await res.json();
+          const tags = data['dist-tags'] || {};
+          const latest = tags.latest || '-';
+          latestEl.textContent = latest !== '-' ? `v${latest}` : '-';
+        }
+      } catch {
+        latestEl.textContent = 'Unavailable';
+      }
+
+      try {
+        const dlRes = await fetch(NPM_DOWNLOADS_URL, { cache: 'no-store' });
+        if (dlRes.ok) {
+          const dlData = await dlRes.json();
+          subEl.textContent = `30-day downloads: ${Number(dlData.downloads || 0).toLocaleString()}`;
+        }
+      } catch {
+        // Ignore transient network errors.
+      }
+    }
+
+    async function fetchLiveWorkflowRuns() {
+      try {
+        const res = await fetch(GITHUB_WORKFLOW_RUNS_API, { cache: 'no-store' });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const runs = Array.isArray(data.workflow_runs) ? data.workflow_runs.slice(0, 5) : [];
+        return await Promise.all(runs.map(async (wRun) => {
+          const isActive = isActiveStatus(wRun.status);
+          let stages = null;
+          let detectedMode = null;
+          if (isActive) {
+            try {
+              const jobsRes = await fetch(`https://api.github.com/repos/${REPO_SLUG}/actions/runs/${wRun.id}/jobs`, { cache: 'no-store' });
+              if (jobsRes.ok) {
+                const jobsData = await jobsRes.json();
+                const jobs = Array.isArray(jobsData.jobs) ? jobsData.jobs : [];
+                const authJob = jobs.find((j) => (j.name || '').includes('Authorize'));
+                const notesJob = jobs.find((j) => (j.name || '').includes('Release Notes'));
+                const stgJob = jobs.find((j) => (j.name || '').includes('Certify'));
+                const pubJob = jobs.find((j) => (j.name || '').includes('Publish via'));
+                const verifyJob = jobs.find((j) => (j.name || '').includes('Verify Published npm'));
+                stages = {
+                  authorize: mapJobState(authJob),
+                  notes: mapJobState(notesJob),
+                  staging: mapJobState(stgJob),
+                  publish: mapJobState(pubJob),
+                  verifyNpm: mapJobState(verifyJob),
+                };
+                if (notesJob && notesJob.status !== 'completed') {
+                  detectedMode = 'release';
+                } else if (notesJob && notesJob.conclusion === 'success') {
+                  detectedMode = 'release';
+                }
+              }
+            } catch {
+              // Best-effort job inspection for active runs.
+            }
+          }
+          return { wRun, isActive, stages, detectedMode };
+        }));
+      } catch {
+        return [];
+      }
+    }
+
+    function populatePackageFilter() {
+      const select = document.getElementById('pkg-filter');
+      const current = select.value;
+      const pkgs = new Set(['gdc-cas']);
+      for (const r of allRuns) {
+        if (r.package) pkgs.add(r.package);
+      }
+      select.innerHTML = '<option value="all">All Packages</option>' +
+        [...pkgs].map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+      if ([...pkgs, 'all'].includes(current)) select.value = current;
+    }
+
+    function renderStageBanner() {
+      const stagesEl = document.getElementById('latest-stages');
+      const labelEl = document.getElementById('latest-stages-label');
+      if (allRuns.length > 0) {
+        const activeRun = allRuns.find((r) => isActiveStatus(r.status));
+        const target = activeRun || allRuns[0];
+        const dur = computeLiveDuration(target);
+        labelEl.innerHTML = activeRun
+          ? `Latest Pipeline Execution Stage Progress &mdash; <a href="${esc(target.runUrl)}" target="_blank" rel="noopener">Run #${esc(target.runNumber)}</a> (<span class="badge ${esc(target.status)}">${esc(target.status)}</span> &middot; <span data-live-duration="${esc(target.runId)}">${esc(dur)}</span>)`
+          : `Latest Pipeline Execution Stage Progress &mdash; <a href="${esc(target.runUrl)}" target="_blank" rel="noopener">Run #${esc(target.runNumber)}</a> (<span class="badge ${esc(target.status)}">${esc(target.status)}</span> &middot; ${esc(dur)})`;
+        stagesEl.innerHTML = STAGE_ORDER.map(([key, label]) => {
+          let st = (target.stages && target.stages[key]) || 'skipped';
+          if (key === 'notes' && !target.stages?.notes) {
+            st = target.releaseMode === 'release' ? (target.stages?.authorize || 'skipped') : 'skipped';
+          }
+          return `<div class="stage-pill"><span>${esc(label)}</span><span class="badge ${esc(st)}">${esc(st)}</span></div>`;
+        }).join('');
+      } else {
+        labelEl.textContent = 'Latest Pipeline Execution Stage Progress';
+        stagesEl.innerHTML = STAGE_ORDER.map(([, label]) =>
+          `<div class="stage-pill"><span>${esc(label)}</span><span class="badge idle">idle</span></div>`
+        ).join('');
+      }
+    }
+
+    function renderTable() {
+      const pkgFilter = document.getElementById('pkg-filter').value;
+      const modeFilter = document.getElementById('mode-filter').value;
+      const statusFilter = document.getElementById('status-filter').value;
+
+      const filtered = allRuns.filter((r) => {
+        const mode = (r.releaseMode || 'snapshot').toLowerCase();
+        const pkgMatch = pkgFilter === 'all' || r.package === pkgFilter;
+        const modeMatch = modeFilter === 'all' || mode === modeFilter;
+        const statusMatch = statusFilter === 'all' || r.status === statusFilter;
+        return pkgMatch && modeMatch && statusMatch;
+      });
+
+      const tbody = document.getElementById('runs-tbody');
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; color: var(--muted); padding: 24px;">No pipeline runs recorded yet for this filter.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map((r) => {
+        const mode = (r.releaseMode || 'snapshot').toLowerCase();
+        const commitLink = r.commitSha && r.commitSha !== '-'
+          ? `<a href="https://github.com/${REPO_SLUG}/commit/${esc(r.commitSha)}" target="_blank" rel="noopener"><code>${esc(r.commitSha.slice(0, 7))}</code></a>`
+          : '-';
+        const st = r.stages || {};
+        const stageBadges = STAGE_ORDER.map(([k, fullLabel, shortLabel]) => {
+          let state = st[k] || 'skipped';
+          if (k === 'notes' && !st.notes) {
+            state = mode === 'release' ? (st.authorize || 'skipped') : 'skipped';
+          }
+          return `<span class="badge ${esc(state)}" title="${esc(fullLabel)}: ${esc(state)}">${esc(shortLabel)}: ${esc(state)}</span>`;
+        }).join(' ');
+
+        const triggerLabel = (r.trigger === 'schedule' || !r.actor)
+          ? `<code>${esc(r.trigger || 'manual')}</code>`
+          : `<code>${esc(r.trigger)}</code> (@${esc(r.actor)})`;
+
+        const dur = computeLiveDuration(r);
+        const tagDisplay = r.tag && r.tag !== '-'
+          ? (r.releaseUrl
+              ? ` <a href="${esc(r.releaseUrl)}" target="_blank" rel="noopener">(${esc(r.tag)})</a>`
+              : ` <span style="color:var(--muted)">(${esc(r.tag)})</span>`)
+          : '';
+        const notesToggle = mode === 'release' && r.releaseNotes
+          ? `<details class="notes-toggle"><summary>View Release Notes</summary><pre class="notes-body">${esc(r.releaseNotes)}</pre></details>`
+          : '';
+
+        return `<tr>
+          <td><a href="${esc(r.runUrl)}" target="_blank" rel="noopener">#${esc(r.runNumber)}</a></td>
+          <td title="${esc(r.timestamp || '')}">${esc(formatLocalTimestamp(r.timestamp))}</td>
+          <td><code>${esc(r.package || 'gdc-cas')}</code></td>
+          <td><span class="badge ${esc(mode)}">${esc(mode)}</span></td>
+          <td>${triggerLabel}</td>
+          <td><span class="badge ${esc(r.status)}">${esc(r.status)}</span></td>
+          <td><code>${esc(r.version || '-')}</code>${tagDisplay}${notesToggle}</td>
+          <td>${commitLink}</td>
+          <td>${stageBadges}</td>
+          <td data-live-duration="${esc(r.runId)}">${esc(dur)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function updateLiveDurationsInDOM() {
+      for (const r of allRuns) {
+        if (isActiveStatus(r.status)) {
+          const dur = computeLiveDuration(r);
+          document.querySelectorAll(`[data-live-duration="${r.runId}"]`).forEach((el) => {
+            el.textContent = dur;
+          });
+        }
+      }
+    }
+
+    async function loadDashboard() {
+      const [runsRes, liveRuns] = await Promise.all([
+        fetch('./data/runs.json', { cache: 'no-store' }).catch(() => null),
+        fetchLiveWorkflowRuns(),
+        loadNpmRegistryStats()
+      ]);
+
+      let recordedRuns = [];
+      if (runsRes && runsRes.ok) {
+        try {
+          const parsed = await runsRes.json();
+          if (Array.isArray(parsed)) recordedRuns = parsed;
+        } catch {
+          recordedRuns = [];
+        }
+      }
+
+      const byRunId = new Map();
+      for (const r of recordedRuns) {
+        if (r && r.runId) {
+          byRunId.set(String(r.runId), { ...r, runId: String(r.runId) });
+        }
+      }
+
+      let hasActiveRun = false;
+      for (const { wRun, isActive, stages, detectedMode } of liveRuns) {
+        const runId = String(wRun.id);
+        const existing = byRunId.get(runId);
+        const startedIso = wRun.run_started_at || wRun.created_at;
+        const startedAtMs = startedIso ? Date.parse(startedIso) : null;
+
+        if (isActive) {
+          hasActiveRun = true;
+          byRunId.set(runId, {
+            runId,
+            runNumber: String(wRun.run_number),
+            timestamp: startedIso || (existing && existing.timestamp) || '-',
+            package: (existing && existing.package) || 'gdc-cas',
+            releaseMode: (existing && existing.releaseMode) || detectedMode || 'snapshot',
+            trigger: wRun.event || (existing && existing.trigger) || 'manual',
+            actor: (wRun.actor && wRun.actor.login) || (existing && existing.actor) || '',
+            status: wRun.status || 'in_progress',
+            version: (existing && existing.version) || 'in progress...',
+            tag: (existing && existing.tag) || '-',
+            commitSha: wRun.head_sha || (existing && existing.commitSha) || '-',
+            duration: (existing && existing.duration) || 'N/A',
+            startedAtMs,
+            runUrl: wRun.html_url || (existing && existing.runUrl) || '#',
+            stages: stages || (existing && existing.stages) || {}
+          });
+        } else if (existing && isActiveStatus(existing.status)) {
+          existing.status = wRun.conclusion || wRun.status || existing.status;
+          if (startedAtMs && wRun.updated_at) {
+            existing.duration = formatDurationSeconds((Date.parse(wRun.updated_at) - startedAtMs) / 1000);
+          }
+        }
+      }
+
+      allRuns = Array.from(byRunId.values())
+        .sort((a, b) => Number(b.runNumber || 0) - Number(a.runNumber || 0));
+
+      document.getElementById('kpi-total').textContent = String(allRuns.length);
+      const completed = allRuns.filter((r) => r.status === 'success' || r.status === 'failure');
+      const passed = completed.filter((r) => r.status === 'success');
+      document.getElementById('kpi-pass-rate').textContent = completed.length
+        ? `${Math.round((passed.length / completed.length) * 100)}%`
+        : '-';
+      document.getElementById('kpi-pass-sub').textContent = `${passed.length} / ${completed.length} passed`;
+
+      const latestRel = passed.find((r) => (r.releaseMode || '').toLowerCase() === 'release');
+      const latestSnap = passed.find((r) => (r.releaseMode || 'snapshot').toLowerCase() === 'snapshot');
+      document.getElementById('kpi-latest-release').textContent = latestRel
+        ? `${latestRel.package}@${latestRel.version}`
+        : 'None';
+      document.getElementById('kpi-latest-snapshot').textContent = latestSnap
+        ? `${latestSnap.package}@${latestSnap.version}`
+        : 'None';
+
+      populatePackageFilter();
+      renderStageBanner();
+      renderTable();
+
+      if (durationTimerId) clearInterval(durationTimerId);
+      if (pollTimerId) clearInterval(pollTimerId);
+      if (hasActiveRun) {
+        durationTimerId = setInterval(updateLiveDurationsInDOM, 1000);
+        pollTimerId = setInterval(() => loadDashboard().catch(() => {}), 30000);
+      } else {
+        pollTimerId = setInterval(() => loadDashboard().catch(() => {}), 60000);
+      }
+    }
+
+    document.getElementById('pkg-filter').addEventListener('change', renderTable);
+    document.getElementById('mode-filter').addEventListener('change', renderTable);
+    document.getElementById('status-filter').addEventListener('change', renderTable);
+
+    loadDashboard().catch(() => {});
+  </script>
+</body>
+</html>
