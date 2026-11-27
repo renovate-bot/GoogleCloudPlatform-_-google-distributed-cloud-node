@@ -1,5 +1,27 @@
 [
   {
+    "runId": "46055505846",
+    "runNumber": "3",
+    "timestamp": "2026-11-27T20:28:27.552Z",
+    "package": "gdc-cas",
+    "releaseMode": "snapshot",
+    "trigger": "schedule",
+    "actor": "renovate-bot",
+    "status": "failure",
+    "version": "0.1.0-snapshot.cbc26de",
+    "tag": "-",
+    "commitSha": "cbc26dec70cdda9939e46aafeff333bdecca00ed",
+    "duration": "52m 39s",
+    "runUrl": "https://github.com/renovate-bot/GoogleCloudPlatform-_-google-distributed-cloud-node/actions/runs/46055505846",
+    "stages": {
+      "authorize": "success",
+      "notes": "skipped",
+      "staging": "failure",
+      "publish": "skipped",
+      "verifyNpm": "skipped"
+    }
+  },
+  {
     "runId": "45883075970",
     "runNumber": "2",
     "timestamp": "2026-11-26T19:28:19.656Z",
